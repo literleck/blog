@@ -103,6 +103,52 @@ class BrokenSites(Base):
         self.assertTrue(any("001-post-1.md: title is 'Another title'" in e for e in self.errors(root)))
 
 
+class PostFormat(Base):
+    """Stricter checks of the post format."""
+
+    def write_md(self, root, header):
+        (root / "posts" / "001-post-1.md").write_text("---\n" + header + "date: 2027-02-14\nslug: post-1\n---\nBody.\n", encoding="utf-8")
+
+    def test_header_block_allows_hash_inside_quotes_and_single_quotes(self):
+        root = make_site(self.tmp, [post(1, title="Pong #2: C# is not C", summary="It's issue #4.")])
+        self.write_md(root, 'number: 1  # the first\ntitle: "Pong #2: C# is not C"\nsummary: \'It\'\'s issue #4.\'\n')
+        self.assertEqual(self.errors(root), [])
+
+    def test_wrong_letter_case_in_a_link(self):
+        root = make_site(self.tmp, [post(1, thumb=True)])
+        self.edit(root / "index.html", 'media/001-post-1/thumb.png', 'media/001-post-1/Thumb.png')
+        self.assertTrue(any("Thumb.png" in e for e in self.errors(root)))
+
+    def test_body_outside_the_element_set(self):
+        root = make_site(self.tmp, [post(1, body="<p>Ok.</p><table><tr><td>x</td></tr></table>")])
+        self.assertTrue(any("<table> is not in the allowed set" in e for e in self.errors(root)))
+
+    def test_post_must_follow_the_template(self):
+        root = make_site(self.tmp, [post(1)])
+        self.edit(root / "posts" / name(post(1)), '<a class="skip" href="#content">Skip to content</a>\n', "")
+        self.assertTrue(any("does not follow posts/_template.html" in e for e in self.errors(root)))
+
+    def test_devlog_entry_datetime_must_match(self):
+        root = make_site(self.tmp, [post(1)])
+        self.edit(root / "index.html", '<time datetime="2027-02-14">', '<time datetime="1999-01-01">')
+        self.assertTrue(any("entry #001 <time datetime>" in e for e in self.errors(root)))
+
+    def test_text_only_class_must_match_the_thumbnail(self):
+        root = make_site(self.tmp, [post(1, thumb=True)])
+        self.edit(root / "index.html", '<div class="card">\n    <img class="thumb"', '<div class="card text-only">\n    <img class="thumb"')
+        self.assertTrue(any("entry #001 has a thumbnail but the class text-only" in e for e in self.errors(root)))
+
+    def test_feed_guid_must_be_a_permalink(self):
+        root = make_site(self.tmp, [post(1)])
+        self.edit(root / "feed.xml", '<guid isPermaLink="true">', "<guid>")
+        self.assertTrue(any('isPermaLink="true"' in e for e in self.errors(root)))
+
+    def test_og_image_must_exist(self):
+        root = make_site(self.tmp, [post(1)])
+        self.edit(root / "posts" / name(post(1)), "assets/social.png", "media/001-post-1/missing.png")
+        self.assertTrue(any("og:image" in e and "missing.png" in e for e in self.errors(root)))
+
+
 class Media(Base):
     def test_wide_image_is_a_warning_not_an_error(self):
         root = make_site(self.tmp, [post(1)])
