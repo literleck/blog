@@ -4,6 +4,7 @@ Usage: python3 tools/check_site.py [site root]
 Prints every problem; exit status 1 if there are errors. Media-limit findings are warnings only.
 """
 import datetime
+import os
 import re
 import struct
 import sys
@@ -19,6 +20,8 @@ REQUIRED = ["index.html", "games.html", "about.html", "404.html", "feed.xml", "s
             "assets/hl/init.js", "assets/hl/core.min.js", "assets/hl/languages/c.min.js", "assets/hl/languages/bash.min.js"]
 POST_NAME = re.compile(r"^(\d{3})-([a-z0-9]+(?:-[a-z0-9]+)*)\.html$")
 MAX_WIDTH, MAX_GIF = 1600, 8 * 1024 * 1024
+# Spec §6.3: the only elements a post body may contain.
+BODY_TAGS = {"p", "h2", "h3", "em", "strong", "a", "ul", "ol", "li", "blockquote", "code", "pre", "figure", "img", "video", "figcaption"}
 
 
 def display_date(iso):
@@ -51,13 +54,17 @@ class Page(HTMLParser):
         if tag == "img":
             self.imgs.append({"src": a.get("src", ""), "alt": a.get("alt", ""), "class": cls})
         if tag == "li" and "entry" in cls.split():
-            self._entry = {"tab": "", "datetime": "", "href": "", "title": "", "summary": "", "thumb": None}
+            self._entry = {"tab": "", "datetime": "", "href": "", "title": "", "summary": "", "thumb": None, "card": ""}
             self.entries.append(self._entry)
         if tag == "span" and "tab" in cls.split():
             self._in = "tab"
             self.tabs.append({"text": "", "datetime": ""})
         if tag == "time" and self._in == "tab":
             self.tabs[-1]["datetime"] = a.get("datetime", "")
+            if self._entry is not None:
+                self._entry["datetime"] = a.get("datetime", "")
+        if tag == "div" and self._entry is not None and "card" in cls.split():
+            self._entry["card"] = cls
         if tag in ("title", "h1"):
             self._in = tag
         if tag == "a" and self._entry is not None and self._in == "h2":
@@ -111,6 +118,45 @@ def parse(path):
     return p
 
 
+def exists_exact(root, target):
+    """True if target exists with exactly this letter case (the Mac ignores case; GitHub Pages does not)."""
+    target = Path(os.path.normpath(target))
+    if not target.exists():
+        return False
+    try:
+        parts = target.relative_to(root).parts
+    except ValueError:
+        return True
+    here = root
+    for part in parts:
+        if part not in os.listdir(here):
+            return False
+        here = here / part
+    return True
+
+
+class Tags(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tags = []
+
+    def handle_starttag(self, tag, attrs):
+        self.tags.append(tag)
+
+
+def template_pattern(template):
+    """A regex for a post built from the template: placeholders become groups, everything else must match exactly."""
+    out, seen = [], set()
+    for piece in re.split(r"(\{\{\w+\}\})", template):
+        m = re.fullmatch(r"\{\{(\w+)\}\}", piece)
+        if m:
+            out.append(f"(?P={m.group(1)})" if m.group(1) in seen else f"(?P<{m.group(1)}>.*?)")
+            seen.add(m.group(1))
+        else:
+            out.append(re.escape(piece))
+    return re.compile("".join(out) + r"\Z", re.S)
+
+
 def check_links(root, html_files):
     errors = []
     for f in html_files:
@@ -122,8 +168,8 @@ def check_links(root, html_files):
             target = root / path[len("/blog/"):] if path.startswith("/blog/") else (f.parent / path)
             if path.startswith("/") and not path.startswith("/blog/"):
                 errors.append(f"{f.relative_to(root)}: absolute link outside /blog/: {ref}")
-            elif not target.resolve().exists():
-                errors.append(f"{f.relative_to(root)}: broken link {ref}")
+            elif not exists_exact(root, target):
+                errors.append(f"{f.relative_to(root)}: broken link {ref} (missing, or the letter case differs)")
     return errors
 
 
@@ -162,6 +208,18 @@ def check_media(root):
     return warnings
 
 
+def _scalar(raw):
+    """A header-block value: "double-quoted" (backslash escapes), 'single-quoted' ('' is a quote) or bare; # starts a comment outside quotes."""
+    raw = raw.strip()
+    if raw.startswith('"'):
+        m = re.match(r'"((?:[^"\\]|\\.)*)"\s*(#.*)?$', raw)
+        return re.sub(r"\\(.)", r"\1", m.group(1)) if m else raw
+    if raw.startswith("'"):
+        m = re.match(r"'((?:[^']|'')*)'\s*(#.*)?$", raw)
+        return m.group(1).replace("''", "'") if m else raw
+    return re.split(r"\s+#", raw, maxsplit=1)[0].strip()
+
+
 def read_front_matter(path):
     lines = path.read_text(encoding="utf-8").splitlines()
     if not lines or lines[0] != "---":
@@ -170,18 +228,16 @@ def read_front_matter(path):
     for line in lines[1:]:
         if line == "---":
             return out
-        m = re.match(r"^(\w+):\s*(.*?)\s*(#.*)?$", line)
+        m = re.match(r"^(\w+):\s*(.*)$", line)
         if m:
-            v = m.group(2)
-            if len(v) >= 2 and v[0] == v[-1] == '"':
-                v = v[1:-1].replace('\\"', '"')
-            out[m.group(1)] = v
+            out[m.group(1)] = _scalar(m.group(2))
     return None
 
 
 def check_posts(root):
     errors = []
     posts = {}
+    pattern = template_pattern((root / "posts" / "_template.html").read_text(encoding="utf-8"))
     for f in sorted((root / "posts").glob("*.html")):
         if f.name == "_template.html":
             continue
@@ -193,6 +249,15 @@ def check_posts(root):
         if n in posts:
             errors.append(f"posts/{f.name}: number #{m.group(1)} is already used by posts/{posts[n]['file'].name}")
             continue
+        text = f.read_text(encoding="utf-8")
+        fit = pattern.match(text)
+        if not fit:
+            errors.append(f"posts/{f.name}: does not follow posts/_template.html (only the placeholders may differ)")
+        else:
+            tags = Tags()
+            tags.feed(fit.group("body"))
+            for tag in sorted(set(tags.tags) - BODY_TAGS):
+                errors.append(f"posts/{f.name}: <{tag}> is not in the allowed set of body elements (spec §6.3)")
         p = parse(f)
         tab = p.tabs[0] if p.tabs else {"text": "", "datetime": ""}
         posts[n] = {"file": f, "nnn": m.group(1), "slug": m.group(2), "page": p, "date": tab["datetime"], "title": p.h1,
@@ -218,8 +283,11 @@ def check_posts(root):
         url = f"{SITE_URL}posts/{post['file'].name}"
         if p.meta.get("og:url") != url:
             errors.append(f"{where}: og:url should be {url}")
-        if not p.meta.get("og:image", "").startswith(SITE_URL):
+        og = p.meta.get("og:image", "")
+        if not og.startswith(SITE_URL):
             errors.append(f"{where}: og:image must be an absolute URL under {SITE_URL}")
+        elif not exists_exact(root, root / og[len(SITE_URL):]):
+            errors.append(f"{where}: og:image {og} points to a file that does not exist")
         for img in p.imgs:
             if "thumb" not in img["class"].split() and not img["alt"].strip():
                 errors.append(f"{where}: image {img['src']} has no alt text")
@@ -274,6 +342,11 @@ def check_devlog(root, posts):
             errors.append(f"index.html: entry #{post['nnn']} links to {e['href']}, expected posts/{post['file'].name}")
         if e["tab"] != f"#{post['nnn']} · {display_date(post['date'])}":
             errors.append(f"index.html: entry #{post['nnn']} tab reads '{e['tab']}'")
+        if e["datetime"] != post["date"]:
+            errors.append(f"index.html: entry #{post['nnn']} <time datetime> is '{e['datetime']}', expected '{post['date']}'")
+        if bool(e["thumb"]) == ("text-only" in e["card"].split()):
+            errors.append(f"index.html: entry #{post['nnn']} has a thumbnail but the class text-only, or neither" if e["thumb"]
+                          else f"index.html: entry #{post['nnn']} has no thumbnail, so its card needs the class text-only")
         if " ".join(e["title"].split()) != post["title"]:
             errors.append(f"index.html: entry #{post['nnn']} title differs from the post's <h1>")
         if " ".join(e["summary"].split()) != post["summary"]:
@@ -304,6 +377,8 @@ def check_feed(root, posts):
         got.append(n)
         post = posts[n]
         checks = (("title", post["title"]), ("guid", link), ("description", post["summary"]), ("pubDate", rfc822(post["date"])))
+        if item.find("guid") is None or item.find("guid").get("isPermaLink") != "true":
+            errors.append(f"feed.xml: item #{post['nnn']} guid needs isPermaLink=\"true\"")
         for tag, want in checks:
             if item.findtext(tag, "").strip() != want:
                 errors.append(f"feed.xml: item #{post['nnn']} {tag} is '{item.findtext(tag, '').strip()}', expected '{want}'")
