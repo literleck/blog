@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+<title>Lord Literleck</title>
+<link>https://literleck.github.io/blog/</link>
+<description>Learning to make games from scratch.</description>
+<language>en</language>
+<atom:link href="https://literleck.github.io/blog/feed.xml" rel="self" type="application/rss+xml"/>
+<!-- feed:new -->
+</channel>
+</rss>
