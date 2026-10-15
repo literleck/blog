@@ -1,0 +1,4 @@
+_screens/
+__pycache__/
+*.pyc
+.DS_Store
