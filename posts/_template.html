@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}} · Lord Literleck</title>
+<meta name="description" content="{{summary}}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Lord Literleck">
+<meta property="og:title" content="{{title}}">
+<meta property="og:description" content="{{summary}}">
+<meta property="og:url" content="https://literleck.github.io/blog/posts/{{nnn}}-{{slug}}.html">
+<meta property="og:image" content="{{og_image}}">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" type="application/rss+xml" title="Lord Literleck" href="../feed.xml">
+<link rel="stylesheet" href="../styles.css">
+<script src="../header.js" defer></script>
+<script type="module" src="../assets/hl/init.js"></script>
+</head>
+<body data-root="../" data-page="devlog">
+<a class="skip" href="#content">Skip to content</a>
+<div class="col">
+<header id="site" class="site"><noscript><a class="name" href="../index.html">Lord Literleck</a></noscript></header>
+<main id="content">
+<article class="tabbed">
+<span class="tab">#{{nnn}} · <time datetime="{{date_iso}}">{{date_display}}</time></span>
+<div class="win"><div class="card">
+<h1>{{title}}</h1>
+{{body}}
+<hr>
+<div class="end" aria-hidden="true">▼</div>
+</div></div>
+</article>
+<nav class="prevnext" aria-label="More posts">{{prev}}{{next}}</nav>
+</main>
+<footer id="foot" class="foot"></footer>
+</div>
+</body>
+</html>
