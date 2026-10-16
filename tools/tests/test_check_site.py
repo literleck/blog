@@ -149,6 +149,51 @@ class FinalReview(Base):
         self.assertTrue(any("og:image" in e and "missing.png" in e for e in self.errors(root)))
 
 
+class SpecAnswers(Base):
+    """The user's answers of 2026-10-16: videos wait for a click; numbers count retired posts."""
+
+    def test_video_with_controls_and_no_autoplay_passes(self):
+        root = make_site(self.tmp, [post(1, body='<figure><video src="../assets/favicon.svg" controls loop muted playsinline></video>'
+                                                 '<figcaption>The serve</figcaption></figure>')])
+        self.assertEqual(self.errors(root), [])
+
+    def test_video_must_not_autoplay(self):
+        root = make_site(self.tmp, [post(1, body='<figure><video src="../assets/favicon.svg" autoplay controls loop muted playsinline>'
+                                                 '</video></figure>')])
+        self.assertTrue(any("autoplay" in e for e in self.errors(root)))
+
+    def test_video_needs_controls_and_muted(self):
+        root = make_site(self.tmp, [post(1, body='<figure><video src="../assets/favicon.svg" loop playsinline></video></figure>')])
+        errors = self.errors(root)
+        self.assertTrue(any("controls" in e for e in errors))
+        self.assertTrue(any("muted" in e for e in errors))
+
+    def test_retired_number_cannot_be_used_again(self):
+        root = make_site(self.tmp, [post(1), post(2)])
+        (root / "posts" / "retired.txt").write_text("002\n", encoding="utf-8")
+        self.assertTrue(any("#002 is retired" in e for e in self.errors(root)))
+
+    def test_retired_numbers_must_be_three_digits(self):
+        root = make_site(self.tmp, [post(1)])
+        (root / "posts" / "retired.txt").write_text("2\n", encoding="utf-8")
+        self.assertTrue(any("retired.txt" in e for e in self.errors(root)))
+
+    def test_next_number_counts_retired_posts(self):
+        root = make_site(self.tmp, [post(1), post(2)])
+        self.assertEqual(check_site.next_number(root), 3)
+        (root / "posts" / "retired.txt").write_text("003\n\n005\n", encoding="utf-8")
+        self.assertEqual(check_site.next_number(root), 6)
+        self.assertEqual(self.errors(root), [])
+
+    def test_next_flag_prints_three_digits(self):
+        import contextlib, io
+        root = make_site(self.tmp, [post(1)])
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(check_site.main(["check_site.py", "--next", str(root)]), 0)
+        self.assertEqual(out.getvalue(), "002\n")
+
+
 class Media(Base):
     def test_wide_image_is_a_warning_not_an_error(self):
         root = make_site(self.tmp, [post(1)])
