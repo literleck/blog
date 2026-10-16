@@ -2,6 +2,8 @@
 
 Usage: python3 tools/check_site.py [site root]
 Prints every problem; exit status 1 if there are errors. Media-limit findings are warnings only.
+       python3 tools/check_site.py --next [site root]
+Prints the next post's number (one more than the highest ever published, retired numbers included).
 """
 import datetime
 import os
@@ -138,10 +140,33 @@ def exists_exact(root, target):
 class Tags(HTMLParser):
     def __init__(self):
         super().__init__()
-        self.tags = []
+        self.tags, self.videos = [], []
 
     def handle_starttag(self, tag, attrs):
         self.tags.append(tag)
+        if tag == "video":
+            self.videos.append(dict(attrs))
+
+
+def read_retired(root):
+    """Numbers of deleted posts, from posts/retired.txt (one three-digit number per line). Returns (numbers, errors)."""
+    path = root / "posts" / "retired.txt"
+    numbers, errors = set(), []
+    for i, line in enumerate(path.read_text(encoding="utf-8").splitlines() if path.exists() else [], 1):
+        if not line.strip():
+            continue
+        if re.fullmatch(r"\d{3}", line.strip()):
+            numbers.add(int(line))
+        else:
+            errors.append(f"posts/retired.txt line {i}: '{line}' is not a three-digit number")
+    return numbers, errors
+
+
+def next_number(root):
+    """One more than the highest number ever published, retired numbers included."""
+    root = Path(root)
+    used = {int(m.group(1)) for f in (root / "posts").glob("*.html") if (m := POST_NAME.match(f.name))}
+    return max(used | read_retired(root)[0], default=0) + 1
 
 
 def template_pattern(template):
@@ -235,7 +260,7 @@ def read_front_matter(path):
 
 
 def check_posts(root):
-    errors = []
+    retired, errors = read_retired(root)
     posts = {}
     pattern = template_pattern((root / "posts" / "_template.html").read_text(encoding="utf-8"))
     for f in sorted((root / "posts").glob("*.html")):
@@ -246,6 +271,8 @@ def check_posts(root):
             errors.append(f"posts/{f.name}: name is not NNN-slug.html")
             continue
         n = int(m.group(1))
+        if n in retired:
+            errors.append(f"posts/{f.name}: number #{m.group(1)} is retired (posts/retired.txt); numbers are never reused")
         if n in posts:
             errors.append(f"posts/{f.name}: number #{m.group(1)} is already used by posts/{posts[n]['file'].name}")
             continue
@@ -258,6 +285,12 @@ def check_posts(root):
             tags.feed(fit.group("body"))
             for tag in sorted(set(tags.tags) - BODY_TAGS):
                 errors.append(f"posts/{f.name}: <{tag}> is not in the allowed set of body elements")
+            for v in tags.videos:
+                if "autoplay" in v:
+                    errors.append(f"posts/{f.name}: video {v.get('src')} has autoplay; videos wait for a click")
+                for attr in ("controls", "muted"):
+                    if attr not in v:
+                        errors.append(f"posts/{f.name}: video {v.get('src')} needs the {attr} attribute")
         p = parse(f)
         tab = p.tabs[0] if p.tabs else {"text": "", "datetime": ""}
         posts[n] = {"file": f, "nnn": m.group(1), "slug": m.group(2), "page": p, "date": tab["datetime"], "title": p.h1,
@@ -403,7 +436,13 @@ def check(root):
 
 
 def main(argv):
-    root = Path(argv[1]) if len(argv) > 1 else Path(__file__).resolve().parent.parent
+    args = argv[1:]
+    want_next = "--next" in args
+    args = [a for a in args if a != "--next"]
+    root = Path(args[0]) if args else Path(__file__).resolve().parent.parent
+    if want_next:
+        print(f"{next_number(root):03d}")
+        return 0
     errors, warnings = check(root)
     for w in warnings:
         print("warning:", w)
