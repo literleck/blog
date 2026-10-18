@@ -37,7 +37,18 @@ class Posts(unittest.TestCase):
 
     def test_post_header_links_go_up_one_level(self):
         self.assertEqual(self.m("posts/001-post-1.html", 1200, 'document.querySelector("#site .name").getAttribute("href")'), "../index.html")
-        self.assertEqual(self.m("posts/001-post-1.html", 1200, 'document.querySelector("#site .menu a[aria-current=page]").textContent'), "Devlog")
+
+    def test_post_marks_devlog_as_its_section_not_its_page(self):
+        expr = ('document.querySelectorAll("#site .menu a[aria-current=page]").length+"|"'
+                '+document.querySelector("#site .menu a[aria-current=true]").textContent+"|"'
+                '+getComputedStyle(document.querySelector("#site .menu a[aria-current]"), "::before").content')
+        self.assertEqual(self.m("posts/001-post-1.html", 1200, expr), '0|Devlog|"▸"')
+
+    def test_prev_next_nav_shows_only_when_it_has_links(self):
+        self.assertEqual(self.m("posts/002-post-2.html", 1200, 'getComputedStyle(document.querySelector(".prevnext")).display'), "flex")
+        with tempfile.TemporaryDirectory() as tmp:
+            lone = make_site(tmp, [post(1)])
+            self.assertEqual(probe.measure(lone, "posts/001-post-1.html", 1200, 'getComputedStyle(document.querySelector(".prevnext")).display'), "none")
 
     def test_long_words_and_code_never_widen_the_page(self):
         for page in ("index.html", "posts/001-post-1.html", "posts/002-post-2.html"):

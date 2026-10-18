@@ -39,6 +39,7 @@ img, video { max-width: 100%; }
 /* Skip link and focus */
 .skip { position: absolute; left: 8px; top: -60px; z-index: 10; background: var(--paper); color: var(--title); font: 14px var(--mono); padding: 6px 10px; }
 .skip:focus { top: 8px; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 a:focus-visible { outline: 2px solid var(--cursor); outline-offset: 2px; }
 .card a:focus-visible { outline-color: var(--rust); }
 
@@ -51,8 +52,8 @@ a:focus-visible { outline: 2px solid var(--cursor); outline-offset: 2px; }
        border-top: 2px dashed var(--head-rule); border-bottom: 2px dashed var(--head-rule); font-family: var(--mono); text-shadow: 2px 2px 0 #00000040; }
 .menu { flex: none; display: flex; gap: 18px; font-size: 17px; }
 .menu a, .links a { color: var(--head2); }
-.menu a[aria-current="page"] { color: var(--head); }
-.menu a[aria-current="page"]::before { content: "▸"; color: var(--cursor); margin-right: 3px; }
+.menu a[aria-current] { color: var(--head); }
+.menu a[aria-current]::before { content: "▸"; color: var(--cursor); margin-right: 3px; }
 .menu a:hover, .links a:hover, .foot a:hover, .prevnext a:hover { color: var(--head); }
 .links { flex: 1 1 auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 16px; font-size: 14px; line-height: 1.6; }
 .foot { display: none; }
@@ -103,6 +104,7 @@ hr { border: 0; border-top: 2px dashed var(--rule); margin: 22px 0 8px; }
 .prevnext { display: flex; justify-content: space-between; gap: 16px; margin-top: 20px; font: 15px var(--mono); text-shadow: 2px 2px 0 #00000040; }
 .prevnext a { color: var(--head2); min-width: 0; overflow-wrap: anywhere; }
 .prevnext .next { margin-left: auto; }
+.prevnext:empty { display: none; }
 
 /* highlight.js theme */
 .hljs-comment, .hljs-quote { color: var(--hl-comment); font-style: italic; }

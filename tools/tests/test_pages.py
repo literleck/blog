@@ -24,6 +24,10 @@ class Static(unittest.TestCase):
         text = (REPO / "posts" / "_template.html").read_text(encoding="utf-8")
         self.assertEqual(set(re.findall(r"\{\{\w+\}\}", text)), PLACEHOLDERS)
 
+    def test_every_page_has_one_h1(self):
+        for page in PAGES + ["posts/_template.html"]:
+            self.assertEqual((REPO / page).read_text(encoding="utf-8").count("<h1"), 1, page)
+
     def test_404_uses_absolute_paths(self):
         text = (REPO / "404.html").read_text(encoding="utf-8")
         self.assertIn('data-root="/blog/"', text)
@@ -52,6 +56,11 @@ class InBrowser(unittest.TestCase):
         for page, current in (("index.html", "Devlog"), ("games.html", "Games"), ("about.html", "About")):
             self.assertEqual(self.m(page, 1200, 'document.querySelector("#site .menu a[aria-current=page]").textContent'), current)
         self.assertEqual(self.m("404.html", 1200, 'document.querySelectorAll("#site .menu a[aria-current]").length'), "0")
+
+    def test_devlog_and_games_headings_are_for_screen_readers_only(self):
+        expr = '(function(h){return h.textContent+"|"+h.getBoundingClientRect().height})(document.querySelector("main h1"))'
+        self.assertEqual(self.m("index.html", 1200, expr), "Devlog|1")
+        self.assertEqual(self.m("games.html", 1200, expr), "Games|1")
 
     def test_404_header_links_are_absolute(self):
         self.assertEqual(self.m("404.html", 1200, 'document.querySelector("#site .name").getAttribute("href")'), "/blog/index.html")

@@ -204,5 +204,13 @@ class Media(Base):
         self.assertTrue(any("2400 px wide" in w for w in warnings))
 
 
+class FeedShape(Base):
+    def test_feed_without_channel_is_reported(self):
+        root = make_site(self.tmp, [post(1)])
+        self.edit(root / "feed.xml", "<channel>", "<chanel>")
+        self.edit(root / "feed.xml", "</channel>", "</chanel>")
+        self.assertIn("feed.xml: no <channel> inside <rss>", self.errors(root))
+
+
 if __name__ == "__main__":
     unittest.main()

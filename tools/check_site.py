@@ -399,6 +399,8 @@ def check_feed(root, posts):
         channel = ET.fromstring(text.encode("utf-8")).find("channel")
     except ET.ParseError as exc:
         return [f"feed.xml: not well-formed XML ({exc}); check & < > in titles and summaries"]
+    if channel is None:
+        return ["feed.xml: no <channel> inside <rss>"]
     errors, got = [], []
     for item in channel.findall("item"):
         link = item.findtext("link", "")

@@ -16,6 +16,8 @@
 
   var root = document.body.getAttribute("data-root") || "";
   var current = document.body.getAttribute("data-page") || "";
+  // A post belongs to the Devlog but is not the Devlog page itself.
+  var mark = /\/posts\/[^\/]+$/.test(location.pathname) ? "true" : "page";
 
   function href(url) { return /^[a-z]+:/i.test(url) ? url : root + url; }
 
@@ -47,7 +49,7 @@
     var bar = el("nav", { "class": "bar", "aria-label": "Site" });
     var menu = el("span", { "class": "menu" });
     MENU.forEach(function (m) {
-      menu.appendChild(el("a", { href: href(m[1]), "aria-current": m[0].toLowerCase() === current ? "page" : null }, m[0]));
+      menu.appendChild(el("a", { href: href(m[1]), "aria-current": m[0].toLowerCase() === current ? mark : null }, m[0]));
     });
     bar.appendChild(menu);
     bar.appendChild(links());
