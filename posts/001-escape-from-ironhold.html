@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Escape from Ironhold: my first attempt at game development · Lord Literleck</title>
+<meta name="description" content="My first game, made twice, as a Python text adventure with a custom parser, and as a stealth game in Unity where I faced the famous door problem.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Lord Literleck">
+<meta property="og:title" content="Escape from Ironhold: my first attempt at game development">
+<meta property="og:description" content="My first game, made twice, as a Python text adventure with a custom parser, and as a stealth game in Unity where I faced the famous door problem.">
+<meta property="og:url" content="https://literleck.github.io/blog/posts/001-escape-from-ironhold.html">
+<meta property="og:image" content="https://literleck.github.io/blog/media/001-escape-from-ironhold/thumb.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" type="application/rss+xml" title="Lord Literleck" href="../feed.xml">
+<link rel="stylesheet" href="../styles.css">
+<script src="../header.js" defer></script>
+<script type="module" src="../assets/hl/init.js"></script>
+</head>
+<body data-root="../" data-page="devlog">
+<a class="skip" href="#content">Skip to content</a>
+<div class="col">
+<header id="site" class="site"><noscript><a class="name" href="../index.html">Lord Literleck</a></noscript></header>
+<main id="content">
+<article class="tabbed">
+<span class="tab">#001 · <time datetime="2026-10-18">2026 Oct 18</time></span>
+<div class="win"><div class="card">
+<h1>Escape from Ironhold: my first attempt at game development</h1>
+<p>Escape from Ironhold was my first attempt at game development. I made it twice, first as a text adventure in Python in late 2023, then as a 3D game in Unity, which I finished in June 2024 for the Computer Graphics course of my master's. You play a prisoner trying to escape his cell without the guard catching him.</p>
+<figure><img src="../media/001-escape-from-ironhold/01-title.png" alt="The title screen of the Unity version"><figcaption>The title screen of the Unity version</figcaption></figure>
+<h2>The parser</h2>
+<p><code>&gt; Inspect the straw mattress on the floor.</code></p>
+<blockquote>
+<p>The straw mattress doesn't seem comfortable but it's better than nothing.</p>
+<p>- You discover a rusty iron lockpick hidden under the mattress.</p>
+</blockquote>
+<p><code>&gt; Check the lockpick's condition and see if it's usable.</code></p>
+<blockquote>
+<p>A rusty lockpick, suitable for picking locks.</p>
+<p>It shows signs of wear, but perhaps it will suffice.</p>
+</blockquote>
+<p><code>&gt; Pick it up.</code></p>
+<blockquote>
+<p>You now have the lockpick in your possession.</p>
+<p>You can hear the guard snoring outside of your cell.</p>
+</blockquote>
+<p><code>&gt; Wait for the guard to leave.</code></p>
+<blockquote>
+<p>Patience is your current strategy; you wait for developments.</p>
+<p>The guard subtly adjusts his position on his chair.</p>
+<p>The guard wakes up and leaves, disappearing from your view.</p>
+</blockquote>
+<p><code>&gt; Now that the guard has left, use the rusty lockpick to unlock the lock on the cell door.</code></p>
+<blockquote>
+<p>With a twist of the lockpick, the cell lock opened up.</p>
+</blockquote>
+<p>These are just some examples of what the game's parser can do. The parser is the part I'm proudest of. Making <em>&quot;use the rusty lockpick to unlock the lock on the cell door&quot;</em> mean what it says sent me through the whole documentation of <em>Inform</em>, the language a lot of parser-based interactive fiction is written in. I rebuilt the parts of Inform's world model that I needed in Python, such as grammar lines for each verb, a scope of things you can reach, objects concealed inside other objects, a scoring system for deciding which &quot;door&quot; you mean when the room has two, and a reference system to decide what you mean when you say <em>&quot;it&quot;</em> in <em>&quot;pick it up&quot;</em>. LLMs existed back then, but all I had was copying and pasting to and from ChatGPT, and for the parser that was no help at all.</p>
+<p>Then there is the guard. Every turn he may move somewhere new, near your cell, on patrol, near the exit or at the back of the dungeon. Where he stands sets the odds that he notices anything.</p>
+<pre><code class="language-python">chance_of_detection = {
+    self.NOT_IN_DUNGEON: 0,
+    self.NEAR_EXIT: 0.125,
+    self.PATROLLING: 0.25,
+    self.NEAR_CELL: 1,
+    self.BACK_OF_DUNGEON: 0.125,
+}
+</code></pre>
+<p>The same table decides whether he spots that your cell door is open. If he does while you're hiding in the barrel, he starts searching the whole dungeon for you. He also keeps a grudge. Throw things at him and his attitude drops, from <em>&quot;Sit down, little scum&quot;</em> to a last warning, and one throw past that he comes into your cell and kills you. Unless you've already lifted his keys. Then he reaches for them, finds nothing, says <em>&quot;Damn it, I must have dropped the key at the toilets!&quot;</em> and leaves you alone in the dungeon.</p>
+<h2>The door problem</h2>
+<p>Liz England's essay <a href="https://lizengland.com/blog/the-door-problem/">The Door Problem</a> shows how one door keeps every role on a game team busy.</p>
+<p>In the text version an open door is a flag, while in Unity it is an object that has to swing on its hinges a little every frame, 90 degrees per second up to 135 and not a degree more. While it closes, the player is moved to a layer that ignores collisions, so a closing door can't shove them around. Opening it also moves the door itself to a layer the guard can see. As long as the door is closed, he can't see into the cell.</p>
+<p>I wrote this in my report for the course.</p>
+<blockquote>
+<p>At one point during development I sat back for a minute and realised I had just solved a problem for which there were no guides at all, relying only on the documentation. That problem was the rotation of the door. I admit my solution may not be ideal, and it is certainly not readable or easy to maintain, but it works exactly the way I wanted within the game.</p>
+</blockquote>
+<figure><img src="../media/001-escape-from-ironhold/04-cell-door-unlocked.png" alt="The cell door, unlocked with the lockpick from the bedroll"><figcaption>The cell door, unlocked with the lockpick from the bedroll</figcaption></figure>
+<p>The 3D guard rolls only one die, when he pauses, to decide whether he dozes off. The rest is a state machine with five states (patrol, pause, sleep, alert and caught). His field of view and the state pattern both started from YouTube tutorials. What I added is a grace period, so he has to keep you in sight for a moment before he's sure. When the open cell door comes into view, he says <em>&quot;Huh? The door is open!&quot;</em> and switches to alert, which is patrolling with a question mark over his head.</p>
+<figure><img src="../media/001-escape-from-ironhold/guard-patrol.gif" alt="The guard notices the open cell door and starts searching"><figcaption>The guard notices the open cell door and starts searching</figcaption></figure>
+<p>If he keeps you in view, it's <em>&quot;Stop right there!&quot;</em> and back to the cell.</p>
+<figure><img src="../media/001-escape-from-ironhold/06-stop-right-there.png" alt="Caught in the dungeon corridor"><figcaption>Caught in the dungeon corridor</figcaption></figure>
+<p>The dungeon is Synty's POLYGON Dungeon pack from the Unity Asset Store and the animations come from Mixamo. The camera and click-to-move began as tutorials, like the field of view. What I wrote is everything that decides what happens. Each object is a set of attributes (<code>Openable</code>, <code>Unlockable</code>, <code>Pickpocketable</code>, <code>Enterable</code>), and the menu offers only the verbs whose attributes say yes. When you click the guard, one of the options is <code>Pickpocket</code>, but only until you've robbed him.</p>
+<figure><img src="../media/001-escape-from-ironhold/07-pickpocket-the-guard.png" alt="Pickpocketing the guard"><figcaption>Pickpocketing the guard</figcaption></figure>
+<h2>The rest of the castle</h2>
+<p>The Unity version ends at the dungeon gate, but Ironhold is a whole castle, and I have wanted to build the rest of it ever since. My report for the course already listed what would come next. You would throw a stone to draw the guard away, or put out the torches so he sees less. There would be sound, which the game still doesn't have, and a story for the protagonist. Turning Escape from Ironhold into a complete game is a dream I still carry.</p>
+<figure><img src="../media/001-escape-from-ironhold/08-escaped.png" alt="Out of Ironhold"><figcaption>Out of Ironhold</figcaption></figure>
+<hr>
+<div class="end" aria-hidden="true">▼</div>
+</div></div>
+</article>
+<nav class="prevnext" aria-label="More posts"></nav>
+</main>
+<footer id="foot" class="foot"></footer>
+</div>
+</body>
+</html>

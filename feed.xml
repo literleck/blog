@@ -7,5 +7,13 @@
 <language>en</language>
 <atom:link href="https://literleck.github.io/blog/feed.xml" rel="self" type="application/rss+xml"/>
 <!-- feed:new -->
+<item>
+  <title>Escape from Ironhold: my first attempt at game development</title>
+  <link>https://literleck.github.io/blog/posts/001-escape-from-ironhold.html</link>
+  <guid isPermaLink="true">https://literleck.github.io/blog/posts/001-escape-from-ironhold.html</guid>
+  <pubDate>Sun, 18 Oct 2026 12:00:00 GMT</pubDate>
+  <description>My first game, made twice, as a Python text adventure with a custom parser, and as a stealth game in Unity where I faced the famous door problem.</description>
+</item>
+
 </channel>
 </rss>
