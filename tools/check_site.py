@@ -31,6 +31,11 @@ def display_date(iso):
     return f"{d.year} {d.strftime('%b')} {d.day}"
 
 
+def updated_slot(iso):
+    """What a post's {{updated}} placeholder holds: nothing, or the edit date the writer chose to show."""
+    return f' · updated <time datetime="{iso}">{display_date(iso)}</time>' if iso else ""
+
+
 def rfc822(iso):
     d = datetime.date.fromisoformat(iso)
     return f"{d.strftime('%a')}, {d.day:02d} {d.strftime('%b')} {d.year} 12:00:00 GMT"
@@ -60,10 +65,10 @@ class Page(HTMLParser):
             self.entries.append(self._entry)
         if tag == "span" and "tab" in cls.split():
             self._in = "tab"
-            self.tabs.append({"text": "", "datetime": ""})
+            self.tabs.append({"text": "", "times": []})
         if tag == "time" and self._in == "tab":
-            self.tabs[-1]["datetime"] = a.get("datetime", "")
-            if self._entry is not None:
+            self.tabs[-1]["times"].append(a.get("datetime", ""))
+            if self._entry is not None and len(self.tabs[-1]["times"]) == 1:
                 self._entry["datetime"] = a.get("datetime", "")
         if tag == "div" and self._entry is not None and "card" in cls.split():
             self._entry["card"] = cls
@@ -292,9 +297,10 @@ def check_posts(root):
                     if attr not in v:
                         errors.append(f"posts/{f.name}: video {v.get('src')} needs the {attr} attribute")
         p = parse(f)
-        tab = p.tabs[0] if p.tabs else {"text": "", "datetime": ""}
-        posts[n] = {"file": f, "nnn": m.group(1), "slug": m.group(2), "page": p, "date": tab["datetime"], "title": p.h1,
-                    "summary": p.meta.get("description", "")}
+        times = p.tabs[0]["times"] if p.tabs else []
+        posts[n] = {"file": f, "nnn": m.group(1), "slug": m.group(2), "page": p, "date": times[0] if times else "",
+                    "updated": times[1] if len(times) > 1 else None, "title": p.h1, "summary": p.meta.get("description", ""),
+                    "slot": fit.group("updated") if fit and "updated" in pattern.groupindex else None}
     numbers = sorted(posts)
     for i, n in enumerate(numbers):
         post, p, where = posts[n], posts[n]["page"], f"posts/{posts[n]['file'].name}"
@@ -303,8 +309,20 @@ def check_posts(root):
         except ValueError:
             errors.append(f"{where}: date tab has no valid <time datetime=YYYY-MM-DD>")
             continue
-        if p.tabs[0]["text"] != f"#{post['nnn']} · {shown}":
-            errors.append(f"{where}: date tab reads '{p.tabs[0]['text']}', expected '#{post['nnn']} · {shown}'")
+        want_tab = f"#{post['nnn']} · {shown}"
+        if len(p.tabs[0]["times"]) > 2:
+            errors.append(f"{where}: date tab has more than two <time> elements (the date and an optional updated date)")
+        if post["updated"] is not None:
+            try:
+                want_tab += f" · updated {display_date(post['updated'])}"
+                if post["updated"] < post["date"]:
+                    errors.append(f"{where}: updated date {post['updated']} is before the post's date {post['date']}")
+                if post["slot"] is not None and post["slot"] != updated_slot(post["updated"]):
+                    errors.append(f"{where}: the updated slot reads '{post['slot']}', expected '{updated_slot(post['updated'])}'")
+            except ValueError:
+                errors.append(f"{where}: date tab has no valid <time datetime=YYYY-MM-DD> for the updated date")
+        if p.tabs[0]["text"] != want_tab:
+            errors.append(f"{where}: date tab reads '{p.tabs[0]['text']}', expected '{want_tab}'")
         if not post["title"]:
             errors.append(f"{where}: no <h1> title")
         if p.title != f"{post['title']} · {NAME}":
@@ -344,9 +362,12 @@ def check_posts(root):
                 errors.append(f"posts/{md.name}: no header block between --- lines")
             else:
                 for key, have in (("number", str(n)), ("slug", post["slug"]), ("title", post["title"]),
-                                  ("date", post["date"]), ("summary", post["summary"])):
+                                  ("date", post["date"]), ("updated", post["updated"]), ("summary", post["summary"])):
                     if fm.get(key) != have:
                         errors.append(f"posts/{md.name}: {key} is '{fm.get(key)}', the page has '{have}'")
+                keys = list(fm)
+                if "updated" in keys and keys[keys.index("updated") - 1] != "date":
+                    errors.append(f"posts/{md.name}: updated must come directly after date")
     return posts, errors
 
 

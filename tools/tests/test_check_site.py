@@ -194,6 +194,77 @@ class VideosAndNumbers(Base):
         self.assertEqual(out.getvalue(), "002\n")
 
 
+class UpdatedDate(Base):
+    """Academy request 8 (2026-10-19): an edited post may show an optional "updated" date in its tab."""
+
+    def write_md(self, root, extra="updated: 2027-03-01\n"):
+        (root / "posts" / "001-post-1.md").write_text('---\nnumber: 1\ntitle: "Post 1"\ndate: 2027-02-14\n' + extra +
+                                                      'slug: post-1\nsummary: "Summary of post 1."\n---\nBody text.\n', encoding="utf-8")
+
+    def test_slot_is_empty_without_updated(self):
+        root = make_site(self.tmp, [post(1)])
+        self.assertIn('<time datetime="2027-02-14">2027 Feb 14</time></span>', (root / "posts" / name(post(1))).read_text(encoding="utf-8"))
+
+    def test_updated_post_passes(self):
+        root = make_site(self.tmp, [post(1, updated="2027-03-01"), post(2)])
+        self.write_md(root)
+        self.assertIn('2027 Feb 14</time> · updated <time datetime="2027-03-01">2027 Mar 1</time></span>',
+                      (root / "posts" / name(post(1))).read_text(encoding="utf-8"))
+        self.assertEqual(self.errors(root), [])
+
+    def test_updated_on_the_same_day_passes(self):
+        self.assertEqual(self.errors(make_site(self.tmp, [post(1, updated="2027-02-14")])), [])
+
+    def test_updated_before_the_date(self):
+        root = make_site(self.tmp, [post(1, updated="2027-02-13")])
+        self.assertTrue(any("updated date 2027-02-13 is before the post's date" in e for e in self.errors(root)))
+
+    def test_updated_must_be_a_real_date(self):
+        root = make_site(self.tmp, [post(1, updated="2027-03-01")])
+        self.edit(root / "posts" / name(post(1)), 'datetime="2027-03-01"', 'datetime="2027-02-30"')
+        self.assertTrue(any("no valid <time datetime=YYYY-MM-DD> for the updated date" in e for e in self.errors(root)))
+
+    def test_updated_display_must_match(self):
+        root = make_site(self.tmp, [post(1, updated="2027-03-01")])
+        self.edit(root / "posts" / name(post(1)), ">2027 Mar 1</time>", ">2027 Mar 01</time>")
+        self.assertTrue(any("date tab reads" in e for e in self.errors(root)))
+
+    def test_slot_must_be_exact(self):
+        root = make_site(self.tmp, [post(1, updated="2027-03-01")])
+        self.edit(root / "posts" / name(post(1)), "</time> · updated <time", "</time> · <em>updated</em> <time")
+        self.assertTrue(any("updated slot" in e for e in self.errors(root)))
+
+    def test_first_time_is_the_post_date(self):
+        root = make_site(self.tmp, [post(1, updated="2027-03-01")])
+        self.assertEqual(check_site.check_posts(root)[0][1]["date"], "2027-02-14")
+
+    def test_markdown_updated_must_match_the_page(self):
+        root = make_site(self.tmp, [post(1, updated="2027-03-01")])
+        self.write_md(root, "updated: 2027-03-02\n")
+        self.assertTrue(any("001-post-1.md: updated is '2027-03-02', the page has '2027-03-01'" in e for e in self.errors(root)))
+
+    def test_markdown_without_updated_when_the_page_has_one(self):
+        root = make_site(self.tmp, [post(1, updated="2027-03-01")])
+        self.write_md(root, "")
+        self.assertTrue(any("001-post-1.md: updated is 'None', the page has '2027-03-01'" in e for e in self.errors(root)))
+
+    def test_markdown_updated_when_the_page_has_none(self):
+        root = make_site(self.tmp, [post(1)])
+        self.write_md(root)
+        self.assertTrue(any("001-post-1.md: updated is '2027-03-01', the page has 'None'" in e for e in self.errors(root)))
+
+    def test_markdown_updated_goes_directly_after_date(self):
+        root = make_site(self.tmp, [post(1, updated="2027-03-01")])
+        (root / "posts" / "001-post-1.md").write_text('---\nnumber: 1\ntitle: "Post 1"\ndate: 2027-02-14\nslug: post-1\n'
+                                                      'updated: 2027-03-01\nsummary: "Summary of post 1."\n---\nBody text.\n', encoding="utf-8")
+        self.assertTrue(any("001-post-1.md: updated must come directly after date" in e for e in self.errors(root)))
+
+    def test_devlog_entry_keeps_the_plain_tab(self):
+        root = make_site(self.tmp, [post(1, updated="2027-03-01")])
+        self.edit(root / "index.html", "2027 Feb 14</time></span>", '2027 Feb 14</time> · updated <time datetime="2027-03-01">2027 Mar 1</time></span>')
+        self.assertTrue(any("entry #001 tab reads" in e for e in self.errors(root)))
+
+
 class Media(Base):
     def test_wide_image_is_a_warning_not_an_error(self):
         root = make_site(self.tmp, [post(1)])

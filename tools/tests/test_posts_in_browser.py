@@ -17,7 +17,7 @@ class Posts(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls._tmp = tempfile.TemporaryDirectory()
-        cls.root = make_site(cls._tmp.name, [post(1, title="A" * 90, body=LONG_BODY), post(2, thumb=True), post(3, body=HEADING_BODY)])
+        cls.root = make_site(cls._tmp.name, [post(1, title="A" * 90, body=LONG_BODY), post(2, thumb=True, updated="2027-12-25"), post(3, body=HEADING_BODY)])
         about = cls.root / "about.html"
         about.write_text(about.read_text(encoding="utf-8").replace(
             "This page is waiting for its author.", "My links: https://example.com/" + "c" * 90), encoding="utf-8")
@@ -63,6 +63,11 @@ class Posts(unittest.TestCase):
         for page in ("about.html", "index.html"):
             got = self.m(page, 375, 'document.querySelector("main#content") ? document.documentElement.scrollWidth : "no page"')
             self.assertEqual(got, "375", page)
+
+    def test_updated_tab_stays_on_one_line_on_a_phone(self):
+        expr = 'document.querySelector(".tab").getBoundingClientRect().height+"|"+document.documentElement.scrollWidth'
+        self.assertEqual(self.m("posts/002-post-2.html", 375, expr), self.m("posts/003-post-3.html", 375, expr))
+        self.assertTrue(self.m("posts/002-post-2.html", 375, expr).endswith("|375"))
 
     def test_code_block_scrolls_inside_itself(self):
         got = self.m("posts/001-post-1.html", 375, '(function(p){return p.scrollWidth > p.clientWidth})(document.querySelector("pre"))')

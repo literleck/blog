@@ -3,18 +3,20 @@
 Tests use it to exercise check_site.py against the real template and pages.
 """
 import html
+import re
 import shutil
 from pathlib import Path
 
-from tools.check_site import SITE_URL, display_date, rfc822
+from tools.check_site import SITE_URL, display_date, rfc822, updated_slot
 
 REPO = Path(__file__).resolve().parents[2]
 COPY = ["index.html", "games.html", "about.html", "404.html", "feed.xml", "styles.css", "header.js", ".nojekyll", "posts/_template.html", "assets"]
 
 
-def post(number, title=None, date="2027-02-14", slug=None, summary=None, thumb=False, body="<p>Body text.</p>"):
+def post(number, title=None, date="2027-02-14", slug=None, summary=None, thumb=False, body="<p>Body text.</p>", updated=None):
     return {"number": number, "nnn": f"{number:03d}", "title": title or f"Post {number}", "date": date,
-            "slug": slug or f"post-{number}", "summary": summary or f"Summary of post {number}.", "thumb": thumb, "body": body}
+            "slug": slug or f"post-{number}", "summary": summary or f"Summary of post {number}.", "thumb": thumb, "body": body,
+            "updated": updated}
 
 
 def name(p):
@@ -27,7 +29,7 @@ def render_post(template, p, prev, nxt):
     next_html = f'<a class="next" href="{name(nxt)}">#{nxt["nnn"]} ▸</a>' if nxt else ""
     values = {"nnn": p["nnn"], "slug": p["slug"], "title": html.escape(p["title"]), "summary": html.escape(p["summary"]),
               "date_iso": p["date"], "date_display": display_date(p["date"]), "og_image": og, "body": p["body"],
-              "prev": prev_html, "next": next_html}
+              "prev": prev_html, "next": next_html, "updated": updated_slot(p["updated"])}
     out = template
     for k, v in values.items():
         out = out.replace("{{" + k + "}}", v)
@@ -51,12 +53,15 @@ def feed_item(p):
 
 
 def make_site(tmp, posts=()):
-    """Copy the real site into tmp/blog and publish `posts` (in the given order, oldest first). Returns the site root."""
+    """Copy the real site into tmp/blog without its live posts and publish `posts` (oldest first). Returns the site root."""
     root = Path(tmp) / "blog"
     for item in COPY:
         src, dst = REPO / item, root / item
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(src, dst) if src.is_dir() else shutil.copy2(src, dst)
+    for f, pattern in (("index.html", r'<li class="entry tabbed">.*?</li>\n'), ("feed.xml", r"<item>.*?</item>\n")):
+        path = root / f  # start from an empty Devlog and feed: the real ones hold the live posts
+        path.write_text(re.sub(pattern, "", path.read_text(encoding="utf-8"), flags=re.S), encoding="utf-8")
     (root / "assets" / "social.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\0" * 24)
     template = (root / "posts" / "_template.html").read_text(encoding="utf-8")
     ordered = sorted(posts, key=lambda q: q["number"])

@@ -1,15 +1,17 @@
 """The launch pages, header and footer. In-browser tests need Google Chrome."""
 import re
+import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from tools import probe
+from tools.tests.sitefixture import make_site
 
 REPO = Path(__file__).resolve().parents[2]
 PAGES = ["index.html", "games.html", "about.html", "404.html"]
 PLACEHOLDERS = {"{{nnn}}", "{{slug}}", "{{title}}", "{{summary}}", "{{date_iso}}", "{{date_display}}",
-                "{{og_image}}", "{{body}}", "{{prev}}", "{{next}}"}
+                "{{og_image}}", "{{body}}", "{{prev}}", "{{next}}", "{{updated}}"}
 
 
 class Static(unittest.TestCase):
@@ -33,13 +35,12 @@ class Static(unittest.TestCase):
         self.assertIn('data-root="/blog/"', text)
         self.assertNotRegex(text, r'(href|src)="(?!/blog/|#)')
 
-    def test_markers_appear_once_and_the_empty_feed_parses(self):
+    def test_markers_appear_once_and_the_feed_parses(self):
         self.assertEqual((REPO / "index.html").read_text(encoding="utf-8").count("<!-- devlog:new -->"), 1)
         feed = (REPO / "feed.xml").read_text(encoding="utf-8")
         self.assertEqual(feed.count("<!-- feed:new -->"), 1)
         channel = ET.fromstring(feed.encode("utf-8")).find("channel")
         self.assertEqual(channel.findtext("title"), "Lord Literleck")
-        self.assertEqual(channel.findall("item"), [])
 
 
 @unittest.skipUnless(probe.available(), "Chrome not found")
@@ -50,7 +51,8 @@ class InBrowser(unittest.TestCase):
 
     def test_empty_devlog_shows_the_empty_line(self):
         expr = 'getComputedStyle(document.querySelector(".empty")).display+"|"+getComputedStyle(document.querySelector(".entries")).display'
-        self.assertEqual(self.m("index.html", 1200, expr), "block|none")
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(probe.measure(make_site(tmp), "index.html", 1200, expr), "block|none")
 
     def test_menu_marks_the_current_page(self):
         for page, current in (("index.html", "Devlog"), ("games.html", "Games"), ("about.html", "About")):
