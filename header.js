@@ -11,6 +11,7 @@
   // A link appears once its account exists. Add more lines as accounts are created.
   var LINKS = [
     ["github", "https://github.com/kganitis"],
+    ["x", "https://x.com/literleck"],
     ["rss", "feed.xml"]
   ];
 
